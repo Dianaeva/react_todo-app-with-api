@@ -2,37 +2,46 @@ import React, { useEffect, useState } from 'react';
 import cn from 'classnames';
 
 import { Todo as TodoType } from '../../types/Todo';
-import * as client from '../../api/todos';
-import { ERROR_MESSAGES } from '../../App';
 
 type Props = {
   todo: TodoType;
   isUpdating?: boolean;
-  deleteTodo?: (todoId: number) => void;
+  deleteTodo?: (todoId: number) => Promise<unknown>;
   setErrorMessage?: (message: string) => void;
+  onChangeTodoCompleteness?: (
+    todoId: number,
+    isCompleted: boolean,
+  ) => Promise<TodoType | void>;
 };
 
 const TodoBase: React.FC<Props> = ({
   todo,
   isUpdating = false,
-  deleteTodo = () => {},
+  deleteTodo,
   setErrorMessage = () => {},
+  onChangeTodoCompleteness,
 }) => {
   const [isTodoUpdating, setIsTodoUpdating] = useState(isUpdating);
 
-  const handleDeleteTodo = () => {
-    setIsTodoUpdating(true);
-    client
-      .deleteTodo(todo.id)
-      .then(() => {
-        deleteTodo(todo.id);
-      })
-      .catch(() => {
-        setErrorMessage(ERROR_MESSAGES.failedDeletingTodo);
-      })
-      .finally(() => {
+  const handleChangeCompleteness = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (onChangeTodoCompleteness) {
+      setIsTodoUpdating(true);
+      setErrorMessage('');
+
+      onChangeTodoCompleteness(todo.id, e.target.checked).finally(() => {
         setIsTodoUpdating(false);
       });
+    }
+  };
+
+  const handleDeleteTodo = () => {
+    if (deleteTodo) {
+      setIsTodoUpdating(true);
+
+      deleteTodo(todo.id).finally(() => {
+        setIsTodoUpdating(false);
+      });
+    }
   };
 
   useEffect(() => {
@@ -48,6 +57,7 @@ const TodoBase: React.FC<Props> = ({
     >
       <label className="todo__status-label">
         <input
+          onChange={handleChangeCompleteness}
           id={`${todo.id}`}
           data-cy="TodoStatus"
           type="checkbox"

@@ -19,4 +19,11 @@ export const deleteTodo = (todoId: number) => {
   return client.delete(`/todos/${todoId}`);
 };
 
+export const changeTodoCompleteness = (
+  todoId: number,
+  isCompleted: boolean,
+) => {
+  return client.patch<Todo>(`/todos/${todoId}`, { completed: isCompleted });
+};
+
 // Add more methods here

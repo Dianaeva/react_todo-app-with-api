@@ -1,16 +1,19 @@
 import React from 'react';
 
-import { Todo } from '../../types/Todo';
+import { Todo as TodoType, Todo } from '../../types/Todo';
 import { Todo as TodoItem } from '../Todo';
 
 type Props = {
   todos: Todo[];
   tempTodo: Todo | null;
   className?: string;
-  deleteTodo: (todoId: number) => void;
+  deleteTodo?: (todoId: number) => Promise<unknown>;
   setErrorMessage: (message: string) => void;
-  completedTodos: Todo[];
-  isClearingCompletedTodos: boolean;
+  updatingTodoIds: number[];
+  onChangeTodoCompleteness?: (
+    todoId: number,
+    isCompleted: boolean,
+  ) => Promise<TodoType | void>;
 };
 
 const TodoListBase: React.FC<Props> = ({
@@ -19,29 +22,21 @@ const TodoListBase: React.FC<Props> = ({
   className,
   deleteTodo,
   setErrorMessage,
-  completedTodos,
-  isClearingCompletedTodos,
+  updatingTodoIds,
+  onChangeTodoCompleteness,
 }) => {
   return (
     <section className={className} data-cy="TodoList">
       <div>
         {todos.map(todo => {
-          let isUpdating = false;
-          const isItemToBeRemoved = completedTodos.find(completeTodo => {
-            return completeTodo.id === todo.id;
-          });
-
-          if (isClearingCompletedTodos && isItemToBeRemoved) {
-            isUpdating = true;
-          }
-
           return (
             <TodoItem
               key={todo.id}
               todo={todo}
               deleteTodo={deleteTodo}
               setErrorMessage={setErrorMessage}
-              isUpdating={isUpdating}
+              isUpdating={updatingTodoIds.includes(todo.id)}
+              onChangeTodoCompleteness={onChangeTodoCompleteness}
             />
           );
         })}

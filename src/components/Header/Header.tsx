@@ -1,22 +1,23 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ERROR_MESSAGES, Filter } from '../../App';
-import * as client from '../../api/todos';
+import cn from 'classnames';
+
 import { Todo } from '../../types/Todo';
+import { ERROR_MESSAGES } from '../../App';
 
 type Props = {
   setErrorMessage: (message: string) => void;
-  setTempTodo: (todo: Todo | null) => void;
-  addTodo: (todo: Todo) => void;
-  appliedFilter: Filter;
+  addTodo: (title: string) => Promise<Todo | void>;
   todos: Todo[];
+  notCompletedTodos: Todo[];
+  onToggleAllTodos: () => void;
 };
 
 const HeaderBase: React.FC<Props> = ({
   setErrorMessage,
-  setTempTodo,
   addTodo,
-  appliedFilter,
   todos,
+  notCompletedTodos,
+  onToggleAllTodos,
 }) => {
   const [todoTitle, setTodoTitle] = useState('');
 
@@ -35,36 +36,17 @@ const HeaderBase: React.FC<Props> = ({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const title = todoTitle.trim();
 
-    if (todoTitle.trim() === '') {
+    if (title === '') {
       setErrorMessage(ERROR_MESSAGES.emptyTitle);
 
       return;
     }
 
     setIsLoading(true);
-
-    setTempTodo({
-      id: 0,
-      userId: client.USER_ID,
-      title: todoTitle.trim(),
-      completed: false,
-    });
-
-    client
-      .addTodo(todoTitle.trim())
-      .then(res => {
-        setTempTodo(null);
-        if (appliedFilter !== 'completed') {
-          addTodo(res);
-        }
-
-        clearForm();
-      })
-      .catch(() => {
-        setTempTodo(null);
-        setErrorMessage(ERROR_MESSAGES.failedAddingTodo);
-      })
+    addTodo(title)
+      .then(clearForm)
       .finally(() => {
         setIsLoading(false);
       });
@@ -76,14 +58,17 @@ const HeaderBase: React.FC<Props> = ({
 
   return (
     <header className="todoapp__header">
-      {/* this button should have `active` class only if all todos are completed */}
-      <button
-        type="button"
-        className="todoapp__toggle-all active"
-        data-cy="ToggleAllButton"
-      />
+      {todos.length !== 0 && (
+        <button
+          onClick={onToggleAllTodos}
+          type="button"
+          className={cn('todoapp__toggle-all', {
+            active: notCompletedTodos.length === 0,
+          })}
+          data-cy="ToggleAllButton"
+        />
+      )}
 
-      {/* Add a todo on form submit */}
       <form onSubmit={handleSubmit}>
         <input
           onChange={handleChangeTodoTitle}

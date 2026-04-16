@@ -1,5 +1,6 @@
 import React from 'react';
 import cn from 'classnames';
+
 import { Filter } from '../../App';
 import { Todo } from '../../types/Todo';
 
@@ -62,7 +63,6 @@ const FooterBase: React.FC<Props> = ({
         </a>
       </nav>
 
-      {/* this button should be disabled if there are no completed todos */}
       <button
         onClick={clearCompletedTodos}
         type="button"

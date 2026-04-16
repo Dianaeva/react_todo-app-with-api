@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { UserWarning } from './UserWarning';
-import { deleteTodo, getTodos, USER_ID } from './api/todos';
+import * as client from './api/todos';
 import { TodoList } from './components/TodoList';
 import { Todo } from './types/Todo';
 import { Footer } from './components/Footer';
@@ -32,8 +32,7 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const [isClearingCompletedTodos, setIsClearingCompletedTodos] =
-    useState(false);
+  const [updatingTodoIds, setUpdatingTodoIds] = useState<number[]>([]);
 
   const notCompletedTodos: Todo[] = useMemo(() => {
     return todos.filter(todo => !todo.completed);
@@ -43,32 +42,117 @@ export const App: React.FC = () => {
     return todos.filter(todo => todo.completed);
   }, [todos]);
 
-  const addTodo = useCallback((todo: Todo) => {
-    setTodos(prevTodos => [...prevTodos, todo]);
+  const addTodo = useCallback(async (title: string) => {
+    setErrorMessage('');
+
+    setTempTodo({
+      id: 0,
+      userId: client.USER_ID,
+      title: title,
+      completed: false,
+    });
+
+    return client
+      .addTodo(title)
+      .then(res => {
+        setTempTodo(null);
+        setTodos(prevTodos => [...prevTodos, res]);
+
+        return res;
+      })
+      .catch(() => {
+        setTempTodo(null);
+        setErrorMessage(ERROR_MESSAGES.failedAddingTodo);
+
+        return Promise.reject(ERROR_MESSAGES.failedAddingTodo);
+      });
   }, []);
 
-  const removeTodo = (todoId: number) => {
-    setTodos(prevTodos => {
-      return prevTodos.filter(todo => todo.id !== todoId);
+  const removeTodo = async (todoId: number) => {
+    setErrorMessage('');
+
+    return client
+      .deleteTodo(todoId)
+      .then(res => {
+        setTodos(prevTodos => {
+          return prevTodos.filter(todo => todo.id !== todoId);
+        });
+
+        return res;
+      })
+      .catch(() => {
+        setErrorMessage(ERROR_MESSAGES.failedDeletingTodo);
+
+        return Promise.reject(ERROR_MESSAGES.failedDeletingTodo);
+      });
+  };
+
+  const changeTodoCompleteness = async (
+    todoId: number,
+    isCompleted: boolean,
+  ) => {
+    setErrorMessage('');
+
+    return client
+      .changeTodoCompleteness(todoId, isCompleted)
+      .then(res => {
+        setTodos(prevTodos => {
+          const updatedTodo = prevTodos.find(todo => todo.id === todoId);
+          let index;
+
+          if (updatedTodo) {
+            index = prevTodos.indexOf(updatedTodo);
+
+            updatedTodo.completed = isCompleted;
+
+            return [
+              ...prevTodos.slice(0, index),
+              updatedTodo,
+              ...prevTodos.slice(index + 1),
+            ];
+          } else {
+            return prevTodos;
+          }
+        });
+
+        return res;
+      })
+      .catch(() => {
+        setErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
+
+        return Promise.reject(ERROR_MESSAGES.failedUpdatingTodo);
+      });
+  };
+
+  const toggleAllTodos = () => {
+    const promises = [];
+
+    if (notCompletedTodos.length === 0) {
+      setUpdatingTodoIds(todos.map(todo => todo.id));
+
+      for (const todo of todos) {
+        promises.push(changeTodoCompleteness(todo.id, false));
+      }
+    } else {
+      setUpdatingTodoIds(notCompletedTodos.map(todo => todo.id));
+
+      for (const todo of notCompletedTodos) {
+        promises.push(changeTodoCompleteness(todo.id, true));
+      }
+    }
+
+    Promise.allSettled(promises).finally(() => {
+      setUpdatingTodoIds([]);
     });
   };
 
   const clearCompletedTodos = () => {
-    setIsClearingCompletedTodos(true);
-    const promises = completedTodos.map(todo => deleteTodo(todo.id));
+    setUpdatingTodoIds(completedTodos.map(todo => todo.id));
 
-    Promise.allSettled(promises).then(results => {
-      const failedIds = completedTodos
-        .filter((_, i) => results[i].status === 'rejected')
-        .map(todo => todo.id);
+    const promises = completedTodos.map(todo => removeTodo(todo.id));
 
-      if (failedIds.length > 0) {
-        setErrorMessage(ERROR_MESSAGES.failedDeletingTodo);
-      }
-
-      setTodos(prev =>
-        prev.filter(todo => !todo.completed || failedIds.includes(todo.id)),
-      );
+    Promise.allSettled(promises).finally(() => {
+      setUpdatingTodoIds([]);
     });
   };
 
@@ -99,7 +183,7 @@ export const App: React.FC = () => {
     }
 
     setErrorMessage('');
-    processTodoData(getTodos());
+    processTodoData(client.getTodos());
   }, [processTodoData]);
 
   const visibleTodos = useMemo(() => {
@@ -113,7 +197,7 @@ export const App: React.FC = () => {
     }
   }, [todos, appliedFilter, notCompletedTodos, completedTodos]);
 
-  if (!USER_ID) {
+  if (!client.USER_ID) {
     return <UserWarning />;
   }
 
@@ -124,10 +208,10 @@ export const App: React.FC = () => {
       <div className="todoapp__content">
         <Header
           setErrorMessage={setErrorMessage}
-          setTempTodo={setTempTodo}
           addTodo={addTodo}
-          appliedFilter={appliedFilter}
           todos={todos}
+          notCompletedTodos={notCompletedTodos}
+          onToggleAllTodos={toggleAllTodos}
         />
 
         {isLoading && <Loader />}
@@ -138,8 +222,8 @@ export const App: React.FC = () => {
           className="todoapp__main"
           deleteTodo={removeTodo}
           setErrorMessage={setErrorMessage}
-          completedTodos={completedTodos}
-          isClearingCompletedTodos={isClearingCompletedTodos}
+          onChangeTodoCompleteness={changeTodoCompleteness}
+          updatingTodoIds={updatingTodoIds}
         />
 
         {todos.length !== 0 && (
@@ -153,7 +237,11 @@ export const App: React.FC = () => {
         )}
       </div>
 
-      <ErrorNotification message={errorMessage} hidden={!errorMessage} />
+      <ErrorNotification
+        message={errorMessage}
+        hidden={!errorMessage}
+        onNotificationClosed={setErrorMessage}
+      />
     </div>
   );
 };
