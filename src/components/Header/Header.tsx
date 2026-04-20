@@ -5,7 +5,8 @@ import { Todo } from '../../types/Todo';
 import { ERROR_MESSAGES } from '../../App';
 
 type Props = {
-  setErrorMessage: (message: string) => void;
+  clearErrorMessage: () => void;
+  setErrorMessage: (errorMessage: string) => void;
   addTodo: (title: string) => Promise<Todo | void>;
   todos: Todo[];
   notCompletedTodos: Todo[];
@@ -14,6 +15,7 @@ type Props = {
 
 const HeaderBase: React.FC<Props> = ({
   setErrorMessage,
+  clearErrorMessage,
   addTodo,
   todos,
   notCompletedTodos,
@@ -27,7 +29,7 @@ const HeaderBase: React.FC<Props> = ({
 
   const handleChangeTodoTitle = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTodoTitle(e.target.value);
-    setErrorMessage('');
+    clearErrorMessage();
   };
 
   const clearForm = () => {

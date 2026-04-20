@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import cn from 'classnames';
 
 import { Todo as TodoType } from '../../types/Todo';
@@ -7,26 +7,32 @@ type Props = {
   todo: TodoType;
   isUpdating?: boolean;
   deleteTodo?: (todoId: number) => Promise<unknown>;
-  setErrorMessage?: (message: string) => void;
+  clearErrorMessage?: () => void;
   onChangeTodoCompleteness?: (
     todoId: number,
     isCompleted: boolean,
   ) => Promise<TodoType | void>;
+  onRenamingTodo?: (todoId: number, title: string) => Promise<TodoType | void>;
 };
 
 const TodoBase: React.FC<Props> = ({
   todo,
   isUpdating = false,
   deleteTodo,
-  setErrorMessage = () => {},
+  clearErrorMessage = () => {},
   onChangeTodoCompleteness,
+  onRenamingTodo,
 }) => {
   const [isTodoUpdating, setIsTodoUpdating] = useState(isUpdating);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [newTitle, setNewTitle] = useState(todo.title);
+
+  const newTitleInput = useRef<HTMLInputElement | null>(null);
 
   const handleChangeCompleteness = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (onChangeTodoCompleteness) {
       setIsTodoUpdating(true);
-      setErrorMessage('');
+      clearErrorMessage();
 
       onChangeTodoCompleteness(todo.id, e.target.checked).finally(() => {
         setIsTodoUpdating(false);
@@ -44,9 +50,79 @@ const TodoBase: React.FC<Props> = ({
     }
   };
 
+  const keyupEventListener = (e: KeyboardEvent) => {
+    const key = e.key;
+
+    if (key === 'Escape') {
+      setIsRenaming(false);
+      setNewTitle(todo.title);
+
+      document.removeEventListener('keyup', keyupEventListener);
+    }
+  };
+
+  const handleStartRenaming = () => {
+    setIsRenaming(true);
+
+    document.addEventListener('keyup', keyupEventListener);
+  };
+
+  const handleStopRenaming = () => {
+    setIsRenaming(false);
+    setNewTitle(todo.title);
+
+    document.removeEventListener('keyup', keyupEventListener);
+  };
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewTitle(e.target.value);
+  };
+
+  const handleRenamingTodo = (
+    e: React.FormEvent<HTMLFormElement> | React.FocusEvent<HTMLInputElement>,
+  ) => {
+    e.preventDefault();
+
+    const title = newTitle.trim();
+
+    if (todo.title === title) {
+      handleStopRenaming();
+
+      return;
+    }
+
+    setIsTodoUpdating(true);
+
+    if (title !== '' && onRenamingTodo) {
+      onRenamingTodo(todo.id, title)
+        .then(() => {
+          handleStopRenaming();
+        })
+        .finally(() => {
+          setIsTodoUpdating(false);
+        });
+    }
+
+    if (title === '' && deleteTodo) {
+      deleteTodo(todo.id)
+        .then(() => {
+          handleStopRenaming();
+        })
+        .finally(() => {
+          setIsTodoUpdating(false);
+        });
+    }
+  };
+
   useEffect(() => {
     setIsTodoUpdating(isUpdating);
   }, [isUpdating]);
+
+  useEffect(() => {
+    if (newTitleInput.current && isRenaming) {
+      newTitleInput.current.focus();
+    }
+  }, [isRenaming]);
 
   return (
     <div
@@ -67,18 +143,37 @@ const TodoBase: React.FC<Props> = ({
         />
       </label>
 
-      <span data-cy="TodoTitle" className="todo__title">
-        {todo.title}
-      </span>
-
-      <button
-        type="button"
-        className="todo__remove"
-        data-cy="TodoDelete"
-        onClick={handleDeleteTodo}
-      >
-        ×
-      </button>
+      {isRenaming ? (
+        <form onSubmit={handleRenamingTodo}>
+          <input
+            data-cy="TodoTitleField"
+            ref={newTitleInput}
+            placeholder="Empty todo will be deleted"
+            className="todo__title-field"
+            value={newTitle}
+            onChange={handleTitleChange}
+            onBlur={handleRenamingTodo}
+          />
+        </form>
+      ) : (
+        <>
+          <span
+            data-cy="TodoTitle"
+            className="todo__title"
+            onDoubleClick={handleStartRenaming}
+          >
+            {todo.title}
+          </span>
+          <button
+            type="button"
+            className="todo__remove"
+            data-cy="TodoDelete"
+            onClick={handleDeleteTodo}
+          >
+            ×
+          </button>
+        </>
+      )}
 
       <div
         data-cy="TodoLoader"

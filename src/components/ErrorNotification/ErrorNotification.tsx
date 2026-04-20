@@ -1,31 +1,30 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import cn from 'classnames';
 
+import { ErrorState } from '../../types/Error';
+
 type Props = {
-  message: string;
+  error: ErrorState;
   hidden: boolean;
-  onNotificationClosed: (message: string) => void;
+  onNotificationClosed: () => void;
 };
 
 const ErrorNotificationBase: React.FC<Props> = ({
-  message,
   hidden,
   onNotificationClosed,
+  error,
 }) => {
   const [isHidden, setIsHidden] = useState(hidden);
 
-  const timerId = useRef<number | null>(null);
-  const messageTimerId = useRef<number | null>(null);
+  const timerId = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const closeNotification = useCallback(() => {
-    if (messageTimerId.current) {
-      window.clearTimeout(messageTimerId.current);
+    if (timerId.current) {
+      clearTimeout(timerId.current);
     }
 
     setIsHidden(true);
-    messageTimerId.current = window.setTimeout(() => {
-      onNotificationClosed('');
-    }, 1_000);
+    onNotificationClosed();
   }, [onNotificationClosed]);
 
   useEffect(() => {
@@ -33,20 +32,26 @@ const ErrorNotificationBase: React.FC<Props> = ({
   }, [hidden]);
 
   useEffect(() => {
-    if (timerId.current) {
-      window.clearTimeout(timerId.current);
+    if (hidden) {
+      setIsHidden(true);
+
+      return;
     }
 
-    timerId.current = window.setTimeout(() => {
-      closeNotification();
-    }, 3_000);
+    setIsHidden(false);
+
+    if (timerId.current) {
+      clearTimeout(timerId.current);
+    }
+
+    timerId.current = setTimeout(closeNotification, 3_000);
 
     return () => {
       if (timerId.current) {
-        window.clearTimeout(timerId.current);
+        clearTimeout(timerId.current);
       }
     };
-  }, [hidden, message, closeNotification]);
+  }, [hidden, error.id, closeNotification]);
 
   return (
     <div
@@ -67,7 +72,7 @@ const ErrorNotificationBase: React.FC<Props> = ({
         className="delete"
         onClick={closeNotification}
       />
-      {message}
+      {error.errorMessage}
     </div>
   );
 };

@@ -26,4 +26,8 @@ export const changeTodoCompleteness = (
   return client.patch<Todo>(`/todos/${todoId}`, { completed: isCompleted });
 };
 
+export const changeTodoTitle = (todoId: number, title: string) => {
+  return client.patch<Todo>(`/todos/${todoId}`, { title: title });
+};
+
 // Add more methods here

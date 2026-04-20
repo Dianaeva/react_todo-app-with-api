@@ -8,12 +8,13 @@ type Props = {
   tempTodo: Todo | null;
   className?: string;
   deleteTodo?: (todoId: number) => Promise<unknown>;
-  setErrorMessage: (message: string) => void;
+  clearErrorMessage: () => void;
   updatingTodoIds: number[];
   onChangeTodoCompleteness?: (
     todoId: number,
     isCompleted: boolean,
   ) => Promise<TodoType | void>;
+  onRenamingTodo: (todoId: number, title: string) => Promise<TodoType | void>;
 };
 
 const TodoListBase: React.FC<Props> = ({
@@ -21,9 +22,10 @@ const TodoListBase: React.FC<Props> = ({
   tempTodo,
   className,
   deleteTodo,
-  setErrorMessage,
+  clearErrorMessage,
   updatingTodoIds,
   onChangeTodoCompleteness,
+  onRenamingTodo,
 }) => {
   return (
     <section className={className} data-cy="TodoList">
@@ -34,9 +36,10 @@ const TodoListBase: React.FC<Props> = ({
               key={todo.id}
               todo={todo}
               deleteTodo={deleteTodo}
-              setErrorMessage={setErrorMessage}
+              clearErrorMessage={clearErrorMessage}
               isUpdating={updatingTodoIds.includes(todo.id)}
               onChangeTodoCompleteness={onChangeTodoCompleteness}
+              onRenamingTodo={onRenamingTodo}
             />
           );
         })}

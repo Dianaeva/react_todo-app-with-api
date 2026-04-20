@@ -8,6 +8,8 @@ import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { ErrorNotification } from './components/ErrorNotification';
 import { Loader } from './components/Loader';
+import { isFilter, Filter } from './types/Filter';
+import { ErrorState } from './types/Error';
 
 export const ERROR_MESSAGES = {
   failedLoadingTodos: 'Unable to load todos',
@@ -17,12 +19,6 @@ export const ERROR_MESSAGES = {
   emptyTitle: 'Title should not be empty',
 };
 
-export type Filter = 'all' | 'active' | 'completed';
-
-const isFilter = (value: string): value is Filter => {
-  return ['all', 'active', 'completed'].includes(value);
-};
-
 export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
@@ -30,7 +26,11 @@ export const App: React.FC = () => {
   const [appliedFilter, setAppliedFilter] = useState<Filter>('all');
 
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+
+  const [error, setError] = useState<ErrorState>({
+    errorMessage: '',
+    id: null,
+  });
 
   const [updatingTodoIds, setUpdatingTodoIds] = useState<number[]>([]);
 
@@ -42,8 +42,47 @@ export const App: React.FC = () => {
     return todos.filter(todo => todo.completed);
   }, [todos]);
 
+  const setErrorMessage = (errorMessage: string) => {
+    setError({
+      errorMessage,
+      id: Date.now(),
+    });
+  };
+
+  const clearErrorMessage = () => {
+    setError({
+      errorMessage: '',
+      id: null,
+    });
+  };
+
+  const updateTodoField = <T extends keyof Omit<Todo, 'id'>>(
+    todoId: number,
+    field: T,
+    newValue: Todo[T],
+  ) => {
+    setTodos(prevTodos => {
+      const updatedTodo = prevTodos.find(todo => todo.id === todoId);
+      let index;
+
+      if (updatedTodo) {
+        index = prevTodos.indexOf(updatedTodo);
+
+        updatedTodo[field] = newValue;
+
+        return [
+          ...prevTodos.slice(0, index),
+          updatedTodo,
+          ...prevTodos.slice(index + 1),
+        ];
+      } else {
+        return prevTodos;
+      }
+    });
+  };
+
   const addTodo = useCallback(async (title: string) => {
-    setErrorMessage('');
+    clearErrorMessage();
 
     setTempTodo({
       id: 0,
@@ -69,7 +108,7 @@ export const App: React.FC = () => {
   }, []);
 
   const removeTodo = async (todoId: number) => {
-    setErrorMessage('');
+    clearErrorMessage();
 
     return client
       .deleteTodo(todoId)
@@ -91,29 +130,12 @@ export const App: React.FC = () => {
     todoId: number,
     isCompleted: boolean,
   ) => {
-    setErrorMessage('');
+    clearErrorMessage();
 
     return client
       .changeTodoCompleteness(todoId, isCompleted)
       .then(res => {
-        setTodos(prevTodos => {
-          const updatedTodo = prevTodos.find(todo => todo.id === todoId);
-          let index;
-
-          if (updatedTodo) {
-            index = prevTodos.indexOf(updatedTodo);
-
-            updatedTodo.completed = isCompleted;
-
-            return [
-              ...prevTodos.slice(0, index),
-              updatedTodo,
-              ...prevTodos.slice(index + 1),
-            ];
-          } else {
-            return prevTodos;
-          }
-        });
+        updateTodoField(todoId, 'completed', isCompleted);
 
         return res;
       })
@@ -156,6 +178,21 @@ export const App: React.FC = () => {
     });
   };
 
+  const renameTodo = async (todoId: number, title: string) => {
+    return client
+      .changeTodoTitle(todoId, title)
+      .then(res => {
+        updateTodoField(todoId, 'title', title);
+
+        return res;
+      })
+      .catch(() => {
+        setErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
+
+        return Promise.reject(ERROR_MESSAGES.failedUpdatingTodo);
+      });
+  };
+
   const processTodoData = useCallback((promise: Promise<Todo[]>) => {
     promise
       .then(res => {
@@ -170,7 +207,7 @@ export const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setErrorMessage('');
+    clearErrorMessage();
     setIsLoading(true);
     let filterParam = new URL(window.location.href).hash.slice(2);
 
@@ -182,7 +219,7 @@ export const App: React.FC = () => {
       setAppliedFilter(filterParam as Filter);
     }
 
-    setErrorMessage('');
+    clearErrorMessage();
     processTodoData(client.getTodos());
   }, [processTodoData]);
 
@@ -208,6 +245,7 @@ export const App: React.FC = () => {
       <div className="todoapp__content">
         <Header
           setErrorMessage={setErrorMessage}
+          clearErrorMessage={clearErrorMessage}
           addTodo={addTodo}
           todos={todos}
           notCompletedTodos={notCompletedTodos}
@@ -221,9 +259,10 @@ export const App: React.FC = () => {
           tempTodo={tempTodo}
           className="todoapp__main"
           deleteTodo={removeTodo}
-          setErrorMessage={setErrorMessage}
+          clearErrorMessage={clearErrorMessage}
           onChangeTodoCompleteness={changeTodoCompleteness}
           updatingTodoIds={updatingTodoIds}
+          onRenamingTodo={renameTodo}
         />
 
         {todos.length !== 0 && (
@@ -238,9 +277,9 @@ export const App: React.FC = () => {
       </div>
 
       <ErrorNotification
-        message={errorMessage}
-        hidden={!errorMessage}
-        onNotificationClosed={setErrorMessage}
+        error={error}
+        hidden={error.errorMessage === ''}
+        onNotificationClosed={clearErrorMessage}
       />
     </div>
   );
