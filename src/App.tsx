@@ -8,8 +8,7 @@ import { Footer } from './components/Footer';
 import { Header } from './components/Header';
 import { ErrorNotification } from './components/ErrorNotification';
 import { Loader } from './components/Loader';
-import { isFilter, Filter } from './types/Filter';
-import { ErrorState } from './types/Error';
+import { isFilter, Filter, FilterType } from './types/Filter';
 
 export const ERROR_MESSAGES = {
   failedLoadingTodos: 'Unable to load todos',
@@ -23,14 +22,12 @@ export const App: React.FC = () => {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [tempTodo, setTempTodo] = useState<Todo | null>(null);
 
-  const [appliedFilter, setAppliedFilter] = useState<Filter>('all');
+  const [appliedFilter, setAppliedFilter] = useState<Filter>(FilterType.ALL);
 
   const [isLoading, setIsLoading] = useState(false);
 
-  const [error, setError] = useState<ErrorState>({
-    errorMessage: '',
-    id: null,
-  });
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isHiddenError, setIsHiddenError] = React.useState(true);
 
   const [updatingTodoIds, setUpdatingTodoIds] = useState<number[]>([]);
 
@@ -42,18 +39,14 @@ export const App: React.FC = () => {
     return todos.filter(todo => todo.completed);
   }, [todos]);
 
-  const setErrorMessage = (errorMessage: string) => {
-    setError({
-      errorMessage,
-      id: Date.now(),
-    });
+  const addErrorMessage = (message: string) => {
+    setErrorMessage(message);
+    setIsHiddenError(false);
   };
 
   const clearErrorMessage = () => {
-    setError({
-      errorMessage: '',
-      id: null,
-    });
+    setErrorMessage('');
+    setIsHiddenError(true);
   };
 
   const updateTodoField = <T extends keyof Omit<Todo, 'id'>>(
@@ -101,7 +94,7 @@ export const App: React.FC = () => {
       })
       .catch(() => {
         setTempTodo(null);
-        setErrorMessage(ERROR_MESSAGES.failedAddingTodo);
+        addErrorMessage(ERROR_MESSAGES.failedAddingTodo);
 
         return Promise.reject(ERROR_MESSAGES.failedAddingTodo);
       });
@@ -120,7 +113,7 @@ export const App: React.FC = () => {
         return res;
       })
       .catch(() => {
-        setErrorMessage(ERROR_MESSAGES.failedDeletingTodo);
+        addErrorMessage(ERROR_MESSAGES.failedDeletingTodo);
 
         return Promise.reject(ERROR_MESSAGES.failedDeletingTodo);
       });
@@ -140,7 +133,7 @@ export const App: React.FC = () => {
         return res;
       })
       .catch(() => {
-        setErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
+        addErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
 
         return Promise.reject(ERROR_MESSAGES.failedUpdatingTodo);
       });
@@ -187,7 +180,7 @@ export const App: React.FC = () => {
         return res;
       })
       .catch(() => {
-        setErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
+        addErrorMessage(ERROR_MESSAGES.failedUpdatingTodo);
 
         return Promise.reject(ERROR_MESSAGES.failedUpdatingTodo);
       });
@@ -201,7 +194,7 @@ export const App: React.FC = () => {
       })
       .catch(() => {
         setTempTodo(null);
-        setErrorMessage(ERROR_MESSAGES.failedLoadingTodos);
+        addErrorMessage(ERROR_MESSAGES.failedLoadingTodos);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -212,7 +205,7 @@ export const App: React.FC = () => {
     let filterParam = new URL(window.location.href).hash.slice(2);
 
     if (filterParam === '') {
-      filterParam = 'all';
+      filterParam = FilterType.ALL;
     }
 
     if (filterParam && isFilter(filterParam)) {
@@ -225,11 +218,11 @@ export const App: React.FC = () => {
 
   const visibleTodos = useMemo(() => {
     switch (appliedFilter) {
-      case 'active':
+      case FilterType.ACTIVE:
         return notCompletedTodos;
-      case 'completed':
+      case FilterType.COMPLETED:
         return completedTodos;
-      case 'all':
+      default:
         return todos;
     }
   }, [todos, appliedFilter, notCompletedTodos, completedTodos]);
@@ -244,7 +237,7 @@ export const App: React.FC = () => {
 
       <div className="todoapp__content">
         <Header
-          setErrorMessage={setErrorMessage}
+          setErrorMessage={addErrorMessage}
           clearErrorMessage={clearErrorMessage}
           addTodo={addTodo}
           todos={todos}
@@ -277,9 +270,9 @@ export const App: React.FC = () => {
       </div>
 
       <ErrorNotification
-        error={error}
-        hidden={error.errorMessage === ''}
-        onNotificationClosed={clearErrorMessage}
+        message={errorMessage}
+        hidden={isHiddenError}
+        hideMessage={() => setIsHiddenError(true)}
       />
     </div>
   );
